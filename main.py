@@ -113,7 +113,8 @@ def main():
     application.add_handler(CommandHandler("add_task", add_task))
     application.add_handler(CommandHandler("list_task", list_task))
     application.add_handler(CommandHandler("get_task", get_task))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # Обработчик для неопределенных текстовых сообщений
+    application.add_handler(
+        MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # Обработчик для неопределенных текстовых сообщений
     application.run_polling()
 
 
