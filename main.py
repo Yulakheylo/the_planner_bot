@@ -22,10 +22,23 @@ async def help(update, context):
     await update.message.reply_text(
         "/add_task - добавление задачи. Вызов в формате /add_task {название задачи}, {описание}\n"
         "Например, /add_task Сходить в магазин, Купить 3 шт. мороженого\n\n"
-        "/list_task - список всех задач.\n\n"
+        '/assign_task - добавление ответственного за задачу и срок её выполнения.\n'
+        'Например, /assign_task Сходить в магазин, Иван Иванов, 24.04.2024\n'
+        'Если вы хотите редактировать срок выполнения или изменить ответственного, просто заново напишите '
+        'команду /assign_task\n'
+        'Например, /assign_task Сходить в магазин, Петя Смирнов, 30.05.2024\n\n'
+        "/list_task - список всех задач, вместе с ее ответственными и сроком выполнения.\n\n"
         "/get_task - информация о конкретной задаче. Вызов в формате /get_task {название задачи}\n"
-        "Например, /get_task Сходить в магазин"
+        "Например, /get_task Сходить в магазин\n\n"
+        '/delete_task - удаление задачи\n'
+        'Например, /delete_task Сходить в магазин'
     )
+
+
+# Ответ на неизвестное сообщение
+async def unknown(update, context):
+    await update.message.reply_text(
+        "Извините, я не могу понять Ваш запрос. Пожалуйста, воспользуйтесь командой /help для получения помощи.")
 
 
 # Добавление задачи (в формате команда (/add_task) название задачи; описание задачи)
@@ -48,8 +61,13 @@ async def add_task(update, context):
                 f'Пожалуйста, придумайте новое название задачи'
             )
         else:
-            tasks[title] = task
-            await update.message.reply_text(f'Задача "{title}" успешно добавлена!')
+            tasks[title] = []
+            tasks[title].append(task)
+            tasks[title].append('не указан')
+            tasks[title].append('не указан')
+            await update.message.reply_text(f'Задача "{title}" успешно добавлена!\n'
+                                            f'Если хотите добавить ответственного и срок выполнения '
+                                            f'воспользуйтесь командой /assign_task')
 
 
 # Вывод всех задач
@@ -60,7 +78,9 @@ async def list_task(update, context):
             "Чтобы добавить задачи, воспользуйтесь функцией /add_task"
         )
     else:
-        task_list = "\n".join([f"{key}: {value}" for key, value in tasks.items()])
+        task_list = "\n".join(
+            [f"{key}: {value[0]}, исполнитель - {value[1]}, срок выполнения - {value[2]}" for key, value in
+             tasks.items()])
         await update.message.reply_text(f"Список задач:\n{task_list}")
 
 
@@ -80,31 +100,42 @@ async def get_task(update, context):
             await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
 
 
-# ответ на неизвестное сообщение
-async def unknown(update, context):
-    await update.message.reply_text(
-        "Извините, я не могу понять Ваш запрос. Пожалуйста, воспользуйтесь командой /help для получения помощи.")
-
-
-# нужно доделать функцию
 # Добавление отвественного за исполнение задачи; дедлайн
-# async def assign_task(update, context):
-#     text = context.args
-#     text = (' '.join(text)).split(';')
-#     if len(text) < 3:
-#         await update.message.reply_text(
-#             "Вы не ввели ответственного / срок выполнения задачи\n"
-#             "Введите название задачи, ответственного и срок выполнения задачи\n"
-#             "в формате {название задачи}; {ответственный}; {срок выполнения}.\n"
-#             "Например, /assign_task Сходить в магазин; Иван Иванов; 24.04.2024"
-#         )
-#     else:
-#         task = text[0]
-#         person = text[1]
-#         deadline = ' '.join(text[2])
-#         tasks[key] = task
-#         await update.message.reply_text(f"Задача успешно создана с названием {key}!")
+async def assign_task(update, context):
+    text = context.args
+    text = (' '.join(text)).split(',')
+    if len(text) < 3:
+        await update.message.reply_text(
+            "Вы не ввели ответственного / срок выполнения задачи\n"
+            "Введите название задачи, ответственного и срок выполнения задачи\n"
+            "в формате {название задачи}, {ответственный}, {срок выполнения}.\n"
+            "Например, /assign_task Сходить в магазин, Иван Иванов, 24.04.2024"
+        )
+    else:
+        task = text[0]
+        person = text[1]
+        deadline = ''.join(text[2])
+        tasks[task][1] = person
+        tasks[task][2] = deadline
+        await update.message.reply_text(f'Ответственный - {person} для задания "{task}" назначен.\n'
+                                        f'Срок выполнения {deadline} установлен')
 
+
+# Удаление задачи
+async def delete_task(update, context):
+    text = ' '.join(context.args)
+    if len(text) < 1:
+        await update.message.reply_text(
+            "Вы не ввели название задачи для удаления.\n"
+            "Введите название задачи, которую хотите удалить.\n"
+            "Например, /delete_task Сходить в магазин"
+        )
+    else:
+        if text in tasks:
+            del tasks[text]
+            await update.message.reply_text(f'Задача "{text}" успешно удалена.')
+        else:
+            await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
 
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
@@ -113,8 +144,10 @@ def main():
     application.add_handler(CommandHandler("add_task", add_task))
     application.add_handler(CommandHandler("list_task", list_task))
     application.add_handler(CommandHandler("get_task", get_task))
-    application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # Обработчик для неопределенных текстовых сообщений
+    application.add_handler(CommandHandler("assign_task", assign_task))
+    application.add_handler(CommandHandler("delete_task", delete_task))
+    application.add_handler(MessageHandler(filters.COMMAND, unknown))  # введение непонятного текстового сообщения
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # введение неправильной команды
     application.run_polling()
 
 
