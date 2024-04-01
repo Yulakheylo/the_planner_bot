@@ -7,6 +7,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 tasks = {}  # Словарь для хранения задач
+count_completed_tasks = 0  # Количество выполенных задач
 
 
 async def start(update, context):
@@ -22,9 +23,18 @@ async def help(update, context):
     await update.message.reply_text(
         "/add_task - добавление задачи. Вызов в формате /add_task {название задачи}, {описание}\n"
         "Например, /add_task Сходить в магазин, Купить 3 шт. мороженого\n\n"
-        "/list_task - список всех задач.\n\n"
+        '/assign_task - добавление ответственного за задачу и срок её выполнения.\n'
+        'Например, /assign_task Сходить в магазин, Иван Иванов, 24.04.2024\n'
+        'Если вы хотите редактировать срок выполнения или изменить ответственного, просто заново напишите '
+        'команду /assign_task\n'
+        'Например, /assign_task Сходить в магазин, Петя Смирнов, 30.05.2024\n\n'
+        "/list_task - список всех задач, вместе с ее ответственными и сроком выполнения.\n\n"
         "/get_task - информация о конкретной задаче. Вызов в формате /get_task {название задачи}\n"
-        "Например, /get_task Сходить в магазин"
+        "Например, /get_task Сходить в магазин\n\n"
+        '/delete_task - удаление задачи\n'
+        'Например, /delete_task Сходить в магазин\n\n'
+        '/complete_task - выполнение задачи.\n'
+        'Например, /complete_task Сходить в магазин'
     )
 
 
@@ -58,7 +68,9 @@ async def add_task(update, context):
             tasks[title].append(task)
             tasks[title].append('не указан')
             tasks[title].append('не указан')
-            await update.message.reply_text(f'Задача "{title}" успешно добавлена!')
+            await update.message.reply_text(f'Задача "{title}" успешно добавлена!\n'
+                                            f'Если хотите добавить ответственного и срок выполнения '
+                                            f'воспользуйтесь командой /assign_task')
 
 
 # Вывод всех задач
@@ -70,7 +82,7 @@ async def list_task(update, context):
         )
     else:
         task_list = "\n".join(
-            [f"{key}: описание - {value[0]}, исполнитель - {value[1]}, срок выполнения - {value[2]}" for key, value in
+            [f"{key}: {value[0]}, исполнитель - {value[1]}, срок выполнения - {value[2]}" for key, value in
              tasks.items()])
         await update.message.reply_text(f"Список задач:\n{task_list}")
 
@@ -105,11 +117,50 @@ async def assign_task(update, context):
     else:
         task = text[0]
         person = text[1]
-        deadline = ' '.join(text[2])
+        deadline = ''.join(text[2])
         tasks[task][1] = person
         tasks[task][2] = deadline
         await update.message.reply_text(f'Ответственный - {person} для задания "{task}" назначен.\n'
                                         f'Срок выполнения {deadline} установлен')
+
+
+# Выполнение задачи
+async def complete_task(update, context):
+    global count_completed_tasks
+
+    text = ' '.join(context.args)
+    if len(text) < 1:
+        await update.message.reply_text(
+            "Вы не ввели название задачи, которвую хотите завершить.\n"
+            "Введите название задачи, которую хотите завершить.\n"
+            "Например, /complete_task Сходить в магазин"
+        )
+    else:
+        if text in tasks:
+            del tasks[text]
+            count_completed_tasks += 1
+            await update.message.reply_text(
+                f'Задача "{text}" выполнена. Поздравляем!\n'
+                f'Вы выполнили {count_completed_tasks} задач!')
+        else:
+            await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
+
+
+# Удаление задачи
+async def delete_task(update, context):
+    text = ' '.join(context.args)
+    if len(text) < 1:
+        await update.message.reply_text(
+            "Вы не ввели название задачи для удаления.\n"
+            "Введите название задачи, которую хотите удалить.\n"
+            "Например, /delete_task Сходить в магазин"
+        )
+    else:
+        if text in tasks:
+            del tasks[text]
+            await update.message.reply_text(f'Задача "{text}" успешно удалена.')
+        else:
+            await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
 
 
 def main():
@@ -120,8 +171,10 @@ def main():
     application.add_handler(CommandHandler("list_task", list_task))
     application.add_handler(CommandHandler("get_task", get_task))
     application.add_handler(CommandHandler("assign_task", assign_task))
-    application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # Обработчик для неопределенных текстовых сообщений
+    application.add_handler(CommandHandler("complete_task", complete_task))
+    application.add_handler(CommandHandler("delete_task", delete_task))
+    application.add_handler(MessageHandler(filters.COMMAND, unknown))  # введение непонятного текстового сообщения
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # введение неправильной команды
     application.run_polling()
 
 
