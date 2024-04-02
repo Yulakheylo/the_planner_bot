@@ -124,6 +124,46 @@ async def assign_task(update, context):
                                         f'Срок выполнения {deadline} установлен')
 
 
+# Список задач пользователя
+async def user_task(update, context):
+    person = ' ' + ' '.join(context.args)
+    tasks_person = []
+    if len(person) < 1:
+        await update.message.reply_text(
+            "Вы не ввели имя позователя.\n"
+            "Введите имя пользователя, которого хотите увидеть список задач\n"
+            "Например, /user_task Иван Иванов"
+        )
+    else:
+        for task in tasks:
+            if person in tasks[task]:
+                tasks_person.append(task)
+        if len(tasks_person) > 0:
+            tasks_list = "\n".join(
+                [f"{task}: {tasks[task][0]}, исполнитель - {tasks[task][1]}, срок выполнения - {tasks[task][2]}" for
+                 task in tasks_person])
+            await update.message.reply_text(
+                f'Задачи пользователя{person}:\n{tasks_list}')
+        else:
+            await update.message.reply_text(f'Задачи пользователя{person} не найдены.')
+
+
+# Вывод всех пользователей, ответственных за задачи
+async def responsible_task(update, context):
+    responsible_users = set()
+    for task, details in tasks.items():
+        responsible_user = details[1]
+        responsible_users.add(responsible_user)
+
+    if responsible_users:
+        response_message = "Пользователи, ответственные за задачи:\n"
+        for user in responsible_users:
+            response_message += f"- {user}\n"
+        await update.message.reply_text(response_message)
+    else:
+        await update.message.reply_text("Пока нет пользователей, ответственных за задачи.")
+
+
 # Выполнение задачи
 async def complete_task(update, context):
     global count_completed_tasks
@@ -171,6 +211,8 @@ def main():
     application.add_handler(CommandHandler("list_task", list_task))
     application.add_handler(CommandHandler("get_task", get_task))
     application.add_handler(CommandHandler("assign_task", assign_task))
+    application.add_handler(CommandHandler("user_task", user_task))
+    application.add_handler(CommandHandler("responsible_task", responsible_task))
     application.add_handler(CommandHandler("complete_task", complete_task))
     application.add_handler(CommandHandler("delete_task", delete_task))
     application.add_handler(MessageHandler(filters.COMMAND, unknown))  # введение непонятного текстового сообщения
