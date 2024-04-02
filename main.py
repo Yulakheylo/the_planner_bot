@@ -137,6 +137,22 @@ async def delete_task(update, context):
         else:
             await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
 
+
+# Вывод всех пользователей, ответственных за задачи
+async def responsible_task(update, context):
+    responsible_users = set()
+    for task, details in tasks.items():
+        responsible_user = details[1]
+        responsible_users.add(responsible_user)
+
+    if responsible_users:
+        response_message = "Пользователи, ответственные за задачи:\n"
+        for user in responsible_users:
+            response_message += f"- {user}\n"
+        await update.message.reply_text(response_message)
+    else:
+        await update.message.reply_text("Пока нет пользователей, ответственных за задачи.")
+
 def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
@@ -146,6 +162,7 @@ def main():
     application.add_handler(CommandHandler("get_task", get_task))
     application.add_handler(CommandHandler("assign_task", assign_task))
     application.add_handler(CommandHandler("delete_task", delete_task))
+    application.add_handler(CommandHandler("responsible_task", responsible_task))
     application.add_handler(MessageHandler(filters.COMMAND, unknown))  # введение непонятного текстового сообщения
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # введение неправильной команды
     application.run_polling()
