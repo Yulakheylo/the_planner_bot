@@ -1,5 +1,5 @@
 import logging
-from telegram.ext import Updater, CommandHandler, Application, MessageHandler, filters
+from telegram.ext import Updater, CommandHandler, Application, MessageHandler, ConversationHandler, filters
 from telegram import ReplyKeyboardMarkup
 from config import BOT_TOKEN
 
@@ -9,6 +9,12 @@ logger = logging.getLogger(__name__)
 tasks = {}  # Словарь для хранения задач
 count_completed_tasks = 0  # Количество выполенных задач
 
+# Определение различных состояний
+ENTER_TITLE, ENTER_DESCRIPTION = range(2)  # добавление задач
+ENTER_TASK = range(1)  # вывод задачи по названию
+ENTER_TASK2, ENTER_RESPONSIBLE_PERSON, ENTER_DEADLINE = range(3)  # добавление ответсвенного и срока выполнения
+ENTER_USER = range(1)  # вывод всех задач пользователя
+
 
 async def start(update, context):
     user = update.effective_user
@@ -16,26 +22,20 @@ async def start(update, context):
         f"Добро пожаловать в бот-планировщик, {user.mention_html()}!\n"
         "Чтобы просмотреть все возможности бота, воспользуйтесь командой /help."
     )
+    return ConversationHandler.END
 
 
 # Подсказки с возможными командами бота
 async def help(update, context):
     await update.message.reply_text(
-        "/add_task - добавление задачи. Вызов в формате /add_task {название задачи}, {описание}\n"
-        "Например, /add_task Сходить в магазин, Купить 3 шт. мороженого\n\n"
+        '/add_task - добавление задачи\n'
         '/assign_task - добавление ответственного за задачу и срок её выполнения.\n'
-        'Например, /assign_task Сходить в магазин, Иван Иванов, 24.04.2024\n'
-        'Если вы хотите редактировать срок выполнения или изменить ответственного, просто заново напишите '
-        'команду /assign_task\n'
-        'Например, /assign_task Сходить в магазин, Петя Смирнов, 30.05.2024\n\n'
-        "/list_task - список всех задач, вместе с ее ответственными и сроком выполнения.\n\n"
-        "/get_task - информация о конкретной задаче. Вызов в формате /get_task {название задачи}\n"
-        "Например, /get_task Сходить в магазин\n\n"
+        "/list_task - список всех задач, вместе с ее ответственными и сроком выполнения.\n"
+        "/get_task - информация о конкретной задаче\n"
         '/delete_task - удаление задачи\n'
-        'Например, /delete_task Сходить в магазин\n\n'
         '/complete_task - выполнение задачи.\n'
-        'Например, /complete_task Сходить в магазин'
     )
+    return ConversationHandler.END
 
 
 # Ответ на неизвестное сообщение
@@ -44,33 +44,38 @@ async def unknown(update, context):
         "Извините, я не могу понять Ваш запрос. Пожалуйста, воспользуйтесь командой /help для получения помощи.")
 
 
-# Добавление задачи (в формате команда (/add_task) название задачи; описание задачи)
+# Добавление задачи
 async def add_task(update, context):
-    text = context.args
-    text = (' '.join(text)).split(',')
-    if len(text) < 2:
-        await update.message.reply_text(
-            "Вы не ввели название / описание задачи.\n"
-            "Введите название задачи, которую хотите добавить в формате {название}, {описание}.\n"
-            "Например, /add_task Сходить в магазин, Купить 3 шт. мороженого"
-        )
-    else:
-        title = text[0]
-        task = ' '.join(text[1:])
-        if title in tasks:  # Если задача уже есть в списке
-            await update.message.reply_text(
-                f'Задача "{title}" уже существует.\n'
-                f'Вы можете просмотреть информацию о данной задаче вызвав команду /get_task {title}\n'
-                f'Пожалуйста, придумайте новое название задачи'
-            )
-        else:
-            tasks[title] = []
-            tasks[title].append(task)
-            tasks[title].append('не указан')
-            tasks[title].append('не указан')
-            await update.message.reply_text(f'Задача "{title}" успешно добавлена!\n'
-                                            f'Если хотите добавить ответственного и срок выполнения '
-                                            f'воспользуйтесь командой /assign_task')
+    await update.message.reply_text("Введите название задачи")
+    return ENTER_TITLE
+
+
+# Ввод названия задачи
+async def enter_title(update, context):
+    context.user_data['title'] = update.message.text
+    await update.message.reply_text("Введите описание задачи")
+    return ENTER_DESCRIPTION
+
+
+# Ввод описания задачи
+async def enter_description(update, context):
+    context.user_data['description'] = update.message.text
+    title = context.user_data['title']
+    description = context.user_data['description']
+    tasks[title] = []
+    tasks[title].append(description)
+    tasks[title].append('не указан')
+    tasks[title].append('не указан')
+
+    # Добавление задачи в Вашу систему
+    await update.message.reply_text(f"Задача '{title}' с описанием '{description}' успешно добавлена!")
+    return ConversationHandler.END
+
+
+# Отмена операции
+async def cancel(update, context):
+    await update.message.reply_text("Операция отменена.")
+    return ConversationHandler.END
 
 
 # Вывод всех задач
@@ -85,67 +90,89 @@ async def list_task(update, context):
             [f"{key}: {value[0]}, исполнитель - {value[1]}, срок выполнения - {value[2]}" for key, value in
              tasks.items()])
         await update.message.reply_text(f"Список задач:\n{task_list}")
+        return ConversationHandler.END
 
 
 # Вывод задачи по названию
 async def get_task(update, context):
-    text = ' '.join(context.args)
-    if len(text) < 1:
+    await update.message.reply_text("Введите название задачи")
+    return ENTER_TASK
+
+
+# Ввод названия задачи
+async def enter_task(update, context):
+    title = update.message.text
+    if title in tasks:
         await update.message.reply_text(
-            "Вы не ввели название задачи.\n"
-            "Введите название задачи, о которой Вы хотите увидеть информацию.\n"
-            "Например, /get_task Сходить в магазин"
-        )
+            f'Задача "{title}":\n'
+            f'Описание - {tasks[title][0]}, исполнитель - {tasks[title][1]}, срок выполнения - {tasks[title][2]}')
     else:
-        if text in tasks:
-            await update.message.reply_text(f"Задача {text}: {tasks[text]}")
-        else:
-            await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
+        await update.message.reply_text(f'Задача с названием "{title}" не найдена.\n'
+                                        f'Можете просмотреть список своих задач при помощи команды /list_task')
+    return ConversationHandler.END
 
 
 # Добавление отвественного за исполнение задачи; дедлайн
 async def assign_task(update, context):
-    text = context.args
-    text = (' '.join(text)).split(',')
-    if len(text) < 3:
-        await update.message.reply_text(
-            "Вы не ввели ответственного / срок выполнения задачи\n"
-            "Введите название задачи, ответственного и срок выполнения задачи\n"
-            "в формате {название задачи}, {ответственный}, {срок выполнения}.\n"
-            "Например, /assign_task Сходить в магазин, Иван Иванов, 24.04.2024"
-        )
-    else:
-        task = text[0]
-        person = text[1]
-        deadline = ''.join(text[2])
-        tasks[task][1] = person
-        tasks[task][2] = deadline
-        await update.message.reply_text(f'Ответственный - {person} для задания "{task}" назначен.\n'
-                                        f'Срок выполнения {deadline} установлен')
+    await update.message.reply_text("Ведите название задачи")
+    return ENTER_TASK2
+
+
+# Ввод названия задачи
+async def enter_task2(update, context):
+    context.user_data['title'] = update.message.text
+    title = context.user_data['title']
+    if title not in tasks:
+        await update.message.reply_text(f'Задача с названием "{title}" не найдена.\n'
+                                        f'Можете просмотреть список своих задач при помощи команды /list_task')
+        return ConversationHandler.END
+    await update.message.reply_text(f'Введите ответственного для выполнения задачи "{title}"')
+    return ENTER_RESPONSIBLE_PERSON
+
+
+# Ввод ответственного
+async def enter_responsible_person(update, context):
+    context.user_data['person'] = update.message.text
+    title = context.user_data['title']
+    person = context.user_data['person']
+    tasks[title][1] = person
+    await update.message.reply_text(f'Введите срок выполнения')
+    return ENTER_DEADLINE
+
+
+# Ввод срока выполнения
+async def enter_deadline(update, context):
+    deadline = update.message.text
+    title = context.user_data['title']
+    person = context.user_data['person']
+    tasks[title][2] = deadline
+    await update.message.reply_text(f'Ответственный - {person} для задания "{title}" назначен.\n'
+                                    f'Срок выполнения {deadline} установлен.')
+    return ConversationHandler.END
 
 
 # Список задач пользователя
 async def user_task(update, context):
-    person = ' ' + ' '.join(context.args)
-    tasks_person = []
-    if len(person) < 1:
+    await update.message.reply_text('Введите имя пользователя')
+    return ENTER_USER
+
+
+# Ввод имени пользователя
+async def enter_user(update, context):
+    user = update.message.text
+    tasks_user = []
+    for task in tasks:
+        if user in tasks[task]:
+            tasks_user.append(task)
+    if len(tasks_user) > 0:
+        tasks_list = "\n".join(
+            [f"{task}: {tasks[task][0]}, исполнитель - {tasks[task][1]}, срок выполнения - {tasks[task][2]}" for
+             task in tasks_user])
         await update.message.reply_text(
-            "Вы не ввели имя позователя.\n"
-            "Введите имя пользователя, которого хотите увидеть список задач\n"
-            "Например, /user_task Иван Иванов"
-        )
+            f'Задачи пользователя{user}:\n{tasks_list}')
     else:
-        for task in tasks:
-            if person in tasks[task]:
-                tasks_person.append(task)
-        if len(tasks_person) > 0:
-            tasks_list = "\n".join(
-                [f"{task}: {tasks[task][0]}, исполнитель - {tasks[task][1]}, срок выполнения - {tasks[task][2]}" for
-                 task in tasks_person])
-            await update.message.reply_text(
-                f'Задачи пользователя{person}:\n{tasks_list}')
-        else:
-            await update.message.reply_text(f'Задачи пользователя{person} не найдены.')
+        await update.message.reply_text(f'Задачи пользователя {user} не найдены.')
+        return ConversationHandler.END
 
 
 # Вывод всех пользователей, ответственных за задачи
@@ -207,11 +234,48 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
-    application.add_handler(CommandHandler("add_task", add_task))
+
+    adding_tasks = ConversationHandler(
+        entry_points=[CommandHandler('add_task', add_task)],
+        states={
+            ENTER_TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_title)],
+            ENTER_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_description)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+    application.add_handler(adding_tasks)
+
     application.add_handler(CommandHandler("list_task", list_task))
-    application.add_handler(CommandHandler("get_task", get_task))
-    application.add_handler(CommandHandler("assign_task", assign_task))
-    application.add_handler(CommandHandler("user_task", user_task))
+
+    getting_task = ConversationHandler(
+        entry_points=[CommandHandler('get_task', get_task)],
+        states={
+            ENTER_TASK: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_task)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+    application.add_handler(getting_task)
+
+    assigning_task = ConversationHandler(
+        entry_points=[CommandHandler('assign_task', assign_task)],
+        states={
+            ENTER_TASK2: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_task2)],
+            ENTER_RESPONSIBLE_PERSON: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_responsible_person)],
+            ENTER_DEADLINE: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_deadline)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+    application.add_handler(assigning_task)
+
+    person_task = ConversationHandler(
+        entry_points=[CommandHandler('user_task', user_task)],
+        states={
+            ENTER_USER: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_user)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+    application.add_handler(person_task)
+
     application.add_handler(CommandHandler("responsible_task", responsible_task))
     application.add_handler(CommandHandler("complete_task", complete_task))
     application.add_handler(CommandHandler("delete_task", delete_task))
