@@ -14,6 +14,9 @@ ENTER_TITLE, ENTER_DESCRIPTION = range(2)  # добавление задач
 ENTER_TASK = range(1)  # вывод задачи по названию
 ENTER_TASK2, ENTER_RESPONSIBLE_PERSON, ENTER_DEADLINE = range(3)  # добавление ответсвенного и срока выполнения
 ENTER_USER = range(1)  # вывод всех задач пользователя
+ENTER_TASK3 = range(1)  # выполнение задачи
+ENTER_TASK4 = range(1)  # удаление задачи
+ENTER_TASK5, NAME_EDIT, ENTER_NEW_NAME = range(3)  # измение задачи
 
 
 async def start(update, context):
@@ -189,45 +192,99 @@ async def responsible_task(update, context):
         await update.message.reply_text(response_message)
     else:
         await update.message.reply_text("Пока нет пользователей, ответственных за задачи.")
+    return ConversationHandler.END
 
 
 # Выполнение задачи
 async def complete_task(update, context):
+    await update.message.reply_text("Ведите название задачи")
+    return ENTER_TASK3
+
+
+# Ввод названия задачи
+async def enter_task3(update, context):
     global count_completed_tasks
 
-    text = ' '.join(context.args)
-    if len(text) < 1:
+    task = update.message.text
+    if task in tasks:
+        del tasks[task]
+        count_completed_tasks += 1
         await update.message.reply_text(
-            "Вы не ввели название задачи, которвую хотите завершить.\n"
-            "Введите название задачи, которую хотите завершить.\n"
-            "Например, /complete_task Сходить в магазин"
-        )
+            f'Задача "{task}" выполнена. Поздравляем!\n'
+            f'Вы выполнили {count_completed_tasks} задач!')
     else:
-        if text in tasks:
-            del tasks[text]
-            count_completed_tasks += 1
-            await update.message.reply_text(
-                f'Задача "{text}" выполнена. Поздравляем!\n'
-                f'Вы выполнили {count_completed_tasks} задач!')
-        else:
-            await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
+        await update.message.reply_text(f'Задача с названием "{task}" не найдена.')
+        return ConversationHandler.END
 
 
 # Удаление задачи
 async def delete_task(update, context):
-    text = ' '.join(context.args)
-    if len(text) < 1:
-        await update.message.reply_text(
-            "Вы не ввели название задачи для удаления.\n"
-            "Введите название задачи, которую хотите удалить.\n"
-            "Например, /delete_task Сходить в магазин"
-        )
+    await update.message.reply_text("Ведите название задачи")
+    return ENTER_TASK4
+
+
+# Ввод названия задачи
+async def enter_task4(update, context):
+    task = update.message.text
+    if task in tasks:
+        del tasks[task]
+        await update.message.reply_text(f'Задача "{task}" успешно удалена.')
     else:
-        if text in tasks:
-            del tasks[text]
-            await update.message.reply_text(f'Задача "{text}" успешно удалена.')
-        else:
-            await update.message.reply_text(f'Задача с названием "{text}" не найдена.')
+        await update.message.reply_text(f'Задача с названием "{task}" не найдена.')
+    return ConversationHandler.END
+
+
+# Изменение (названия, описания, ответственного, срока выполенния)
+async def edit_task(update, context):
+    await update.message.reply_text("Ведите название задачи")
+    return ENTER_TASK5
+
+
+# Ввод названия задачи
+async def enter_task5(update, context):
+    context.user_data['task'] = update.message.text
+    task = context.user_data['task']
+    if task not in tasks:
+        await update.message.reply_text(f'Задача с названием "{task}" не найдена.')
+        return ConversationHandler.END
+    await update.message.reply_text(f'Что Вы хотите редактировать?\n'
+                                    f'Название/Описание/Ответственный/Срок выполнения')
+    return NAME_EDIT
+
+
+# Ввод того, что именно нужно изменить (название/описание/ответственного/срок выполенния)
+async def name_edit(update, context):
+    subject = update.message.text
+    subject = subject.lower()
+    context.user_data['subject'] = subject
+    if subject not in ['название', 'описание', 'ответственный', 'срок выполнения']:
+        await update.message.reply_text('Извините, я не могу понять Ваш запрос.\n'
+                                        'Изменить можно: Название/Описание/Ответственный/Срок выполнения')
+        return ConversationHandler.END
+    await update.message.reply_text(f'Введите новое {subject}')
+    return ENTER_NEW_NAME
+
+
+# Ввод нового значения
+async def enter_new_name(update, context):
+    new_name = update.message.text
+    task = context.user_data['task']
+    subject = context.user_data['subject']
+
+    if subject == 'название':
+        tasks[new_name] = tasks[task]
+        del tasks[task]
+        await update.message.reply_text('Новое название установлено.')
+    elif subject == 'описание':
+        tasks[task][0] = new_name
+        await update.message.reply_text('Новое описание установлено.')
+    elif subject == 'ответственный':
+        tasks[task][1] = new_name
+        await update.message.reply_text('Новый ответственный установлен.')
+    elif subject == 'срок выполнения':
+        tasks[task][2] = new_name
+        await update.message.reply_text('Новый срок выполнения установлен.')
+    return ConversationHandler.END
 
 
 def main():
@@ -277,8 +334,36 @@ def main():
     application.add_handler(person_task)
 
     application.add_handler(CommandHandler("responsible_task", responsible_task))
-    application.add_handler(CommandHandler("complete_task", complete_task))
-    application.add_handler(CommandHandler("delete_task", delete_task))
+
+    completing_task = ConversationHandler(
+        entry_points=[CommandHandler('complete_task', complete_task)],
+        states={
+            ENTER_TASK3: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_task3)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+    application.add_handler(completing_task)
+
+    deleting_task = ConversationHandler(
+        entry_points=[CommandHandler('delete_task', delete_task)],
+        states={
+            ENTER_TASK4: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_task4)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+    application.add_handler(deleting_task)
+
+    editing_task = ConversationHandler(
+        entry_points=[CommandHandler('edit_task', edit_task)],
+        states={
+            ENTER_TASK5: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_task5)],
+            NAME_EDIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, name_edit)],
+            ENTER_NEW_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, enter_new_name)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+    application.add_handler(editing_task)
+
     application.add_handler(MessageHandler(filters.COMMAND, unknown))  # введение непонятного текстового сообщения
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # введение неправильной команды
     application.run_polling()
