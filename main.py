@@ -1,10 +1,7 @@
 import logging
 from telegram.ext import Updater, CommandHandler, Application, MessageHandler, ConversationHandler, filters
-from telegram import ReplyKeyboardMarkup
 from telegram import ReplyKeyboardMarkup, KeyboardButton
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ConversationHandler
-from telebot import types
 from config import BOT_TOKEN
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
@@ -82,7 +79,9 @@ async def enter_description(update, context):
     tasks[title].append('не указан')
 
     # Добавление задачи в Вашу систему
-    await update.message.reply_text(f"Задача '{title}' с описанием '{description}' успешно добавлена!")
+    await update.message.reply_text(f"Задача '{title}' с описанием '{description}' успешно добавлена!\n"
+                                    f"Если хотите назначить ответственного за задачу и поставить срок выполнения,"
+                                    f"то воспользуйтесь командой /assign_task")
     return ConversationHandler.END
 
 
@@ -183,7 +182,7 @@ async def enter_user(update, context):
             [f"{task}: {tasks[task][0]}, исполнитель - {tasks[task][1]}, срок выполнения - {tasks[task][2]}" for
              task in tasks_user])
         await update.message.reply_text(
-            f'Задачи пользователя{user}:\n{tasks_list}')
+            f'Задачи пользователя{user}:\n {tasks_list}')
     else:
         await update.message.reply_text(f'Задачи пользователя {user} не найдены.')
         return ConversationHandler.END
@@ -252,25 +251,19 @@ async def edit_task(update, context):
 
 
 # Ввод названия задачи
+# Ввод названия задачи
 async def enter_task5(update, context):
     context.user_data['task'] = update.message.text
     task = context.user_data['task']
     if task not in tasks:
         await update.message.reply_text(f'Задача с названием "{task}" не найдена.')
         return ConversationHandler.END
-
     subject = update.message.text  # Используем содержимое сообщения, отправленного при нажатии на кнопку
     context.user_data['subject'] = subject
-
-    keyboard = [
-        [InlineKeyboardButton('Название', callback_data='Название')],
-        [InlineKeyboardButton('Описание', callback_data='Описание')],
-        [InlineKeyboardButton('Ответственный', callback_data='Ответственный')],
-        [InlineKeyboardButton('Срок выполнения', callback_data='Срок выполнения')]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text('Что Вы хотите редактировать?', reply_markup=reply_markup)
+    await update.message.reply_text(f'Что Вы хотите редактировать?',
+                                    reply_markup=ReplyKeyboardMarkup(
+                                        [["Название"], ["Описание"], ["Ответственный"], ["Срок выполнения"]],
+                                        one_time_keyboard=False))
     return NAME_EDIT
 
 
