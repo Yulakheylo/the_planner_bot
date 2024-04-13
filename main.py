@@ -2,6 +2,7 @@ import logging
 from telegram.ext import Updater, CommandHandler, Application, MessageHandler, ConversationHandler, filters
 from telegram import ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import ConversationHandler
+import sqlite3
 from config import BOT_TOKEN
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
@@ -45,6 +46,101 @@ async def help(update, context):
         '/responsible_task - вывод всех пользователей.\n'
         '/edit_task - редоктирование задач.\n'
         '/user_task вывод задач по пользователю.\n'
+        '/add_user - заполнить информацию о себе (используеться 1 раз в начале)\n'
+        '/add_info - изменить информацию о себе\n'
+        '/profile - посмотеть информацию о себе'
+    )
+    return ConversationHandler.END
+
+
+# добавление 1 информации о пользователе, переход в состояние добавления
+async def add_user(update, context):
+    user = update.effective_user
+    await update.message.reply_text(
+        f"Привет! Введи свою информацию, которую хочешь сохранить в базе данных.",
+    )
+    return "WAITING_FOR_NAME"
+
+
+# измемение информации переход в состояние обновления
+async def add_info(update, context):
+    user = update.effective_user
+    await update.message.reply_text(
+        f"Привет! Введи свою информацию, которую хочешь сохранить в базе данных.",
+    )
+    return "WAITING_FOR_UPDATE_INFO"
+
+
+# сохранение первой информации о пользоваетеле
+async def handle_user_info(update, context):
+    user_info = update.message.text
+    chat_id = update.effective_chat.id
+
+    # Соединение с базой данных
+    conn = sqlite3.connect('user.db')
+    cursor = conn.cursor()
+
+    # Создание таблицы, если она еще не существует
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            chat_id INTEGER PRIMARY KEY,
+            user_info TEXT
+        )
+    ''')
+
+    # Сохранение данных в базу данных
+    cursor.execute('''
+        INSERT INTO users (chat_id, user_info) VALUES (?, ?)
+    ''', (chat_id, user_info))
+
+    conn.commit()
+    conn.close()
+
+    await update.message.reply_text(
+        f"Информация '{user_info}' успешно сохранена."
+    )
+    return ConversationHandler.END
+
+
+# профиль где записана информация о пользователе.
+async def profile(update, context):
+    # Получаем информацию о пользователе из базы данных
+    conn = sqlite3.connect('user.db')
+    cursor = conn.cursor()
+    user_id = update.effective_user.id
+    cursor.execute("SELECT * FROM users WHERE chat_id = ?", (user_id,))
+    user_info = cursor.fetchone()
+
+    # Если пользователь не найден в базе данных, отправляем сообщение об ошибке
+    if user_info is None:
+        await update.message.reply_text("Вы еще не добавили информацию о себе. Используйте команду /add_user.")
+    else:
+        # Формируем сообщение с информацией о пользователе
+        message = f"Ваша информация:\n{user_info[1]}"
+        await update.message.reply_text(message)
+
+    conn.close()
+
+
+# обновление информации
+async def update_info(update, context):
+    user_info = update.message.text
+    chat_id = update.effective_chat.id
+
+    # Соединение с базой данных
+    conn = sqlite3.connect('user.db')
+    cursor = conn.cursor()
+
+    # Обновление данных в базе данных
+    cursor.execute('''
+        UPDATE users SET user_info = ? WHERE chat_id = ?
+    ''', (user_info, chat_id))
+
+    conn.commit()
+    conn.close()
+
+    await update.message.reply_text(
+        f"Информация '{user_info}' успешно обновлена."
     )
     return ConversationHandler.END
 
@@ -307,6 +403,15 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help))
+
+    application.add_handler(CommandHandler("profile", profile))
+    conversation_handler = ConversationHandler(
+        entry_points=[CommandHandler('add_user', add_user), CommandHandler('add_info', add_info)],
+        states={"WAITING_FOR_NAME": [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_info)],
+                "WAITING_FOR_UPDATE_INFO": [MessageHandler(filters.TEXT & ~filters.COMMAND, update_info)]},
+        fallbacks=[MessageHandler(filters.COMMAND, unknown)],
+    )
+    application.add_handler(conversation_handler)
 
     adding_tasks = ConversationHandler(
         entry_points=[CommandHandler('add_task', add_task)],
