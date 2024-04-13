@@ -46,14 +46,17 @@ async def help(update, context):
         '/responsible_task - вывод всех пользователей.\n'
         '/edit_task - редоктирование задач.\n'
         '/user_task вывод задач по пользователю.\n'
-        '/add_user - заполнить информацию о себе (используеться 1 раз в начале)\n'
-        '/add_info - добавить (дополнить) информацию о себе\n'
-        '/profile - посмотеть информацию о себе'
+        '/add_user - заполнить информацию о себе (используеться 1 раз в начале) в профиль.\n'
+        '/add_info - добавить (дополнить) информацию о себе в профиль.\n'
+        '/profile - посмотеть информацию о себе в профиле.\n'
+        'Внимание следующая команда не принадлежит отмене!!!\n'
+        'При вызове команды /delete_info, информация о пользователе сразу будет удалена безвозвратно\n'
+        '/delete_info - удалить информацию о себе из профиля.'
     )
     return ConversationHandler.END
 
 
-# добавление 1 информации о пользователе, переход в состояние добавления
+# добавление первой информации о пользователе, переход в состояние добавления
 async def add_user(update, context):
     user = update.effective_user
     await update.message.reply_text(
@@ -152,6 +155,28 @@ async def update_info(update, context):
 
     await update.message.reply_text(
         f"Информация '{user_info}' успешно обновлена."
+    )
+    return ConversationHandler.END
+
+
+# Функция для удаления информации о пользователе
+async def delete_info(update, context):
+    user_id = update.effective_user.id
+
+    # Соединение с базой данных
+    conn = sqlite3.connect('user.db')
+    cursor = conn.cursor()
+
+    # Удаление данных о пользователе из базы данных
+    cursor.execute('''
+        DELETE FROM users WHERE chat_id = ?
+    ''', (user_id,))
+
+    conn.commit()
+    conn.close()
+
+    await update.message.reply_text(
+        f"Информация о Вас успешно удалена из профиля."
     )
     return ConversationHandler.END
 
@@ -416,6 +441,7 @@ def main():
     application.add_handler(CommandHandler("help", help))
 
     application.add_handler(CommandHandler("profile", profile))
+    application.add_handler(CommandHandler("delete_info", delete_info))
     conversation_handler = ConversationHandler(
         entry_points=[CommandHandler('add_user', add_user), CommandHandler('add_info', add_info)],
         states={"WAITING_FOR_NAME": [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_info)],
