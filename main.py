@@ -47,7 +47,7 @@ async def help(update, context):
         '/edit_task - редоктирование задач.\n'
         '/user_task вывод задач по пользователю.\n'
         '/add_user - заполнить информацию о себе (используеться 1 раз в начале)\n'
-        '/add_info - изменить информацию о себе\n'
+        '/add_info - добавить (дополнить) информацию о себе\n'
         '/profile - посмотеть информацию о себе'
     )
     return ConversationHandler.END
@@ -131,10 +131,21 @@ async def update_info(update, context):
     conn = sqlite3.connect('user.db')
     cursor = conn.cursor()
 
+    # Получаем текущую информацию о пользователе
+    cursor.execute("SELECT user_info FROM users WHERE chat_id = ?", (chat_id,))
+    current_info = cursor.fetchone()
+
+    # Если пользователь уже добавил информацию
+    if current_info is not None:
+        # Объединяем текущую информацию и новую информацию в одну строку
+        combined_info = f"{current_info[0]}\n{user_info}"
+    else:
+        combined_info = user_info
+
     # Обновление данных в базе данных
     cursor.execute('''
         UPDATE users SET user_info = ? WHERE chat_id = ?
-    ''', (user_info, chat_id))
+    ''', (combined_info, chat_id))
 
     conn.commit()
     conn.close()
