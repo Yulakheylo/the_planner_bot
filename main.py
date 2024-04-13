@@ -49,8 +49,6 @@ async def help(update, context):
         '/add_user - заполнить информацию о себе (используеться 1 раз в начале) в профиль.\n'
         '/add_info - добавить (дополнить) информацию о себе в профиль.\n'
         '/profile - посмотеть информацию о себе в профиле.\n'
-        'Внимание следующая команда не принадлежит отмене!!!\n'
-        'При вызове команды /delete_info, информация о пользователе сразу будет удалена безвозвратно\n'
         '/delete_info - удалить информацию о себе из профиля.'
     )
     return ConversationHandler.END
@@ -159,25 +157,40 @@ async def update_info(update, context):
     return ConversationHandler.END
 
 
-# Функция для удаления информации о пользователе
+# Функции для удаления информации о пользователе
+# подтверждение удаления информации из профиля
 async def delete_info(update, context):
+    await update.message.reply_text(f'Вы точно хотите удалить информацию из профиля?',
+                                    reply_markup=ReplyKeyboardMarkup(
+                                        [["Да"], ["Нет"]],
+                                        one_time_keyboard=False))
+    return "DELE"
+
+
+# удаление информации из профиля
+async def delete_info_user(update, context):
+    subject = update.message.text
     user_id = update.effective_user.id
 
     # Соединение с базой данных
     conn = sqlite3.connect('user.db')
     cursor = conn.cursor()
-
-    # Удаление данных о пользователе из базы данных
-    cursor.execute('''
-        DELETE FROM users WHERE chat_id = ?
-    ''', (user_id,))
-
+    if subject == 'Да':
+        # Удаление данных о пользователе из базы данных
+        cursor.execute('''
+            DELETE FROM users WHERE chat_id = ?
+        ''', (user_id,))
+        await update.message.reply_text(
+            f"Информация о Вас успешно удалена из профиля.",
+            reply_markup=markup
+        )
+    if subject == 'Нет':
+        await update.message.reply_text(
+            f"Действие отменено.",
+            reply_markup=markup
+        )
     conn.commit()
     conn.close()
-
-    await update.message.reply_text(
-        f"Информация о Вас успешно удалена из профиля."
-    )
     return ConversationHandler.END
 
 
@@ -441,7 +454,6 @@ def main():
     application.add_handler(CommandHandler("help", help))
 
     application.add_handler(CommandHandler("profile", profile))
-    application.add_handler(CommandHandler("delete_info", delete_info))
     conversation_handler = ConversationHandler(
         entry_points=[CommandHandler('add_user', add_user), CommandHandler('add_info', add_info)],
         states={"WAITING_FOR_NAME": [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_user_info)],
@@ -449,6 +461,13 @@ def main():
         fallbacks=[MessageHandler(filters.COMMAND, unknown)],
     )
     application.add_handler(conversation_handler)
+
+    del_user_info = ConversationHandler(
+        entry_points=[CommandHandler('delete_info', delete_info)],
+        states={"DELE": [MessageHandler(filters.TEXT & ~filters.COMMAND, delete_info_user)]},
+        fallbacks=[MessageHandler(filters.COMMAND, unknown)],
+    )
+    application.add_handler(del_user_info)
 
     adding_tasks = ConversationHandler(
         entry_points=[CommandHandler('add_task', add_task)],
