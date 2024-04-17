@@ -1,6 +1,6 @@
 import logging
-from telegram.ext import Updater, CommandHandler, Application, MessageHandler, ConversationHandler, filters
-from telegram import ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import CommandHandler, Application, MessageHandler, filters
+from telegram import ReplyKeyboardMarkup
 from telegram.ext import ConversationHandler
 import sqlite3
 from config import BOT_TOKEN
@@ -44,7 +44,7 @@ async def help(update, context):
         '/delete_task - удаление задачи\n'
         '/complete_task - выполнение задачи.\n'
         '/responsible_task - вывод всех пользователей.\n'
-        '/edit_task - редоктирование задач.\n'
+        '/edit_task - редактирование задач.\n'
         '/user_task вывод задач по пользователю.\n'
         '/add_user - заполнить информацию о себе (используеться 1 раз в начале) в профиль.\n'
         '/add_info - добавить (дополнить) информацию о себе в профиль.\n'
@@ -56,7 +56,6 @@ async def help(update, context):
 
 # добавление первой информации о пользователе, переход в состояние добавления
 async def add_user(update, context):
-    user = update.effective_user
     await update.message.reply_text(
         f"Привет! Введи свою информацию, которую хочешь сохранить в базе данных.",
     )
@@ -65,9 +64,8 @@ async def add_user(update, context):
 
 # измемение информации переход в состояние обновления
 async def add_info(update, context):
-    user = update.effective_user
     await update.message.reply_text(
-        f"Привет! Введи свою информацию, которую хочешь сохранить в базе данных.",
+        f"Привет! Введи свою информацию, которую хочешь сохранить в профиле.",
     )
     return "WAITING_FOR_UPDATE_INFO"
 
@@ -121,6 +119,7 @@ async def profile(update, context):
         await update.message.reply_text(message)
 
     conn.close()
+    return ConversationHandler.END
 
 
 # обновление информации
@@ -247,7 +246,7 @@ async def list_task(update, context):
         task_list = "\n".join(
             [f"{key}: {value[0]}, исполнитель - {value[1]}, срок выполнения - {value[2]}" for key, value in
              tasks.items()])
-        await update.message.reply_text(f"Список задач:\n{task_list}")
+        await update.message.reply_text(f"Список задач:\n{task_list}\n")
         return ConversationHandler.END
 
 
@@ -391,7 +390,7 @@ async def enter_task4(update, context):
 
 # Изменение (названия, описания, ответственного, срока выполенния)
 async def edit_task(update, context):
-    await update.message.reply_text("Ведите название задачи")
+    await update.message.reply_text("Введите пользователя ответственного за задачи")
     return ENTER_TASK5
 
 
