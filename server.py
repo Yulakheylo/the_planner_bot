@@ -50,7 +50,8 @@ async def help(update, context):
         '/add_user - заполнить информацию о себе (используеться когда профиль пуст) в профиль.\n'
         '/add_info - добавить (дополнить) информацию о себе в профиль.\n'
         '/profile - посмотреть информацию о себе в профиле.\n'
-        '/delete_info - удалить информацию о себе из профиля.'
+        '/delete_info - удалить информацию о себе из профиля.\n\n'
+        'Если Вы нажали на какую-то команду и хотите её отменить, то воспользуйтесь /cancel'
     )
     return ConversationHandler.END
 
@@ -243,6 +244,7 @@ async def list_task(update, context):
             "У вас нет задач.\n"
             "Чтобы добавить задачи, воспользуйтесь функцией /add_task"
         )
+        return ConversationHandler.END
     else:
         task_list = "\n".join(
             [f"{key}: {value[0]}, исполнитель - {value[1]}, срок выполнения - {value[2]}" for key, value in
@@ -263,7 +265,7 @@ async def enter_task(update, context):
     if title in tasks:
         await update.message.reply_text(
             f'Задача <b>{title}</b>:\n'
-            f'Описание - <b>{tasks[title][0]}</b>, исполнитель - <b>{tasks[title][1]}</b>,'
+            f'Описание - <b>{tasks[title][0]}</b>, исполнитель - <b>{tasks[title][1]}</b>, '
             f'срок выполнения - <b>{tasks[title][2]}</b>', parse_mode='html')
     else:
         await update.message.reply_text(
@@ -332,9 +334,10 @@ async def enter_user(update, context):
             [f"{task}: {tasks[task][0]}, исполнитель - {tasks[task][1]}, срок выполнения - {tasks[task][2]}" for
              task in tasks_user])
         await update.message.reply_text(
-            f'Задачи пользователя <b>{user}:\n {tasks_list}')
+            f'Задачи пользователя <b>{user}</b>:\n{tasks_list}', parse_mode='html')
+        return ConversationHandler.END
     else:
-        await update.message.reply_text(f'Задачи пользователя {user} не найдены.')
+        await update.message.reply_text(f'Задачи пользователя <b>{user}</b> не найдены.', parse_mode='html')
         return ConversationHandler.END
 
 
@@ -348,7 +351,7 @@ async def responsible_task(update, context):
     if responsible_users:
         response_message = "Пользователи, ответственные за задачи:\n"
         for user in responsible_users:
-            response_message += f"- {user}\n"
+            response_message += f"{user}\n"
         await update.message.reply_text(response_message)
     else:
         await update.message.reply_text("Пока нет пользователей, ответственных за задачи.")
@@ -374,7 +377,7 @@ async def enter_task3(update, context):
             f'Вы выполнили {count_completed_tasks} задач!', parse_mode='html')
     else:
         await update.message.reply_text(f'Задача с названием <b>{task}</b> не найдена.', parse_mode='html')
-        return ConversationHandler.END
+    return ConversationHandler.END
 
 
 # Удаление задачи
@@ -552,8 +555,8 @@ def main():
     )
     application.add_handler(editing_task)
 
-    application.add_handler(MessageHandler(filters.COMMAND, unknown))  # введение непонятного текстового сообщения
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # введение неправильной команды
+    application.add_handler(MessageHandler(filters.COMMAND, unknown))  # ввод непонятного текстового сообщения
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))  # ввод неправильной команды
     application.run_polling()
 
 
