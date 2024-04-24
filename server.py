@@ -8,7 +8,7 @@ from config import BOT_TOKEN
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-reply_keyboard = [['/help'], ['/cancel']]
+reply_keyboard = [['/help']]
 markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
 tasks = {}  # Словарь для хранения задач
@@ -30,7 +30,9 @@ async def start(update, context):
         f"Добро пожаловать в бот-планировщик, {user.mention_html()}!\n"
         "Создайте профиль при помощи команды /add_user!\n"
         "Чтобы просмотреть все возможности бота, воспользуйтесь командой /help.",
-        reply_markup=markup
+        reply_markup=markup,
+        reply=ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True, one_time_keyboard=False)
+
     )
     return ConversationHandler.END
 
