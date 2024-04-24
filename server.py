@@ -8,7 +8,7 @@ from config import BOT_TOKEN
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-reply_keyboard = [['/help']]
+reply_keyboard = [['/help'], ['/cancel']]
 markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True, one_time_keyboard=False)
 
 tasks = {}  # Словарь для хранения задач
