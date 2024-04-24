@@ -185,12 +185,15 @@ async def delete_info_user(update, context):
         ''', (user_id,))
         await update.message.reply_text(
             f"Информация о Вас успешно удалена из профиля.",
-            reply_markup=markup
+            reply_markup=markup,
+            reply=ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True, one_time_keyboard=False)
+
         )
     if subject == 'Нет':
         await update.message.reply_text(
             f"Действие отменено.",
-            reply_markup=markup
+            reply_markup=markup,
+            reply=ReplyKeyboardMarkup([["/cancel"]], resize_keyboard=True, one_time_keyboard=False)
         )
     conn.commit()
     conn.close()
