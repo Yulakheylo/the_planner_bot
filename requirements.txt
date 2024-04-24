@@ -1,1 +1,5 @@
+telegram.ext
+telegram
+sqlite3
 python-telegram-bot
+logging
